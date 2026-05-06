@@ -174,7 +174,7 @@ private fun LoadingView() {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = Accent)
             Spacer(Modifier.height(12.dp))
-            Text("กำลังโหลดราคา SPX + 50 หุ้นจาก Barchart...", color = Muted)
+            Text("กำลังโหลด SPY + 50 หุ้น จาก Barchart...", color = Muted)
             Spacer(Modifier.height(4.dp))
             Text("(ใช้เวลา ~10–25 วิ ขึ้นกับเครือข่าย)", color = Muted, fontSize = 11.sp)
         }
@@ -265,9 +265,9 @@ private fun HeadlineCard(r: DriverReport) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("S&P 500", color = fg.copy(alpha = 0.8f),
+                Text("S&P 500 (SPY ETF)", color = fg.copy(alpha = 0.8f),
                     fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Text("%,.2f".format(r.spxLast),
+                Text("$%,.2f".format(r.spxLast),
                     color = fg, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             }
             Column(horizontalAlignment = Alignment.End) {
@@ -295,7 +295,7 @@ private fun SpxChartCard(
     else null
     val recent = if (cutoffDate != null) spxBars.filter { !it.date.isBefore(cutoffDate) } else spxBars
     val series = ChartSeries(
-        label = "SPX",
+        label = "SPY",
         color = Accent,
         points = recent.map {
             PricePoint(
@@ -312,7 +312,7 @@ private fun SpxChartCard(
             .background(Card)
             .padding(12.dp)
     ) {
-        Text("SPX index — last ${recent.size} sessions",
+        Text("S&P 500 (via SPY) — last ${recent.size} sessions",
             color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         Text("Pinch zoom • drag pan • tap = crosshair • double-tap = reset",
             color = Muted, fontSize = 11.sp)

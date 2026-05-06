@@ -3,6 +3,8 @@ package com.s500.driver.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import okhttp3.OkHttpClient
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
@@ -38,22 +40,40 @@ class DriverRepository {
     /** Sessions to fetch (covers the longest rolling window we expose, +buffer). */
     private val historyDays = 200
 
+    private companion object {
+        /**
+         *  Tuned empirically.  Barchart accepts ~6 concurrent timeseries
+         *  calls comfortably; ~12 starts triggering 403 cool-downs.
+         */
+        const val MAX_CONCURRENT = 6
+    }
+
     /**
-     *  Loads the SPX index plus all top constituents in parallel.  Each
-     *  symbol is fetched independently — a single failure does not abort
-     *  the rest.
+     *  Loads the SPY (S&P 500 proxy) plus all top constituents.  We
+     *  throttle concurrency to MAX_CONCURRENT to avoid tripping the
+     *  Cloudflare rate-limit Barchart sits behind — past that limit
+     *  the proxy starts returning 403/HTML for the timeseries endpoint
+     *  and every subsequent request fails until the cooldown.
+     *
+     *  Each symbol is fetched independently — a single failure does not
+     *  abort the rest.
      *
      *  windowSessions = rolling window for the analysis (e.g. 1 / 5 / 20 / 60).
      */
     suspend fun load(windowSessions: Int): DriverData = coroutineScope {
-        // SPX first — if this fails the whole report can't run.
+        val gate = Semaphore(MAX_CONCURRENT)
+
+        // SPY first — if this fails the whole report can't run.
+        // See BarchartClient.fetchEod doc for why SPY rather than $SPX.
         val spxJob = async(Dispatchers.IO) {
-            runCatching { barchart.fetchEod("\$SPX", historyDays) }
+            gate.withPermit { runCatching { barchart.fetchEod("SPY", historyDays) } }
         }
 
         val constituentJobs = SP500Constituents.TOP.map { c ->
             async(Dispatchers.IO) {
-                val r = runCatching { barchart.fetchEod(c.symbol, historyDays) }
+                val r = gate.withPermit {
+                    runCatching { barchart.fetchEod(c.symbol, historyDays) }
+                }
                 if (r.isSuccess) {
                     FetchOutcome(c.symbol, StockSeries(c.symbol, r.getOrThrow()), null)
                 } else {
@@ -64,7 +84,7 @@ class DriverRepository {
 
         val spxResult = spxJob.await()
         val spxBars = spxResult.getOrNull()
-            ?: throw RuntimeException("ดึง SPX จาก Barchart ไม่ได้: ${spxResult.exceptionOrNull()?.message ?: "?"}")
+            ?: throw RuntimeException("ดึง SPY (S&P 500 proxy) จาก Barchart ไม่ได้: ${spxResult.exceptionOrNull()?.message ?: "?"}")
 
         val outcomes = constituentJobs.map { it.await() }
         val good = outcomes.mapNotNull { it.series }

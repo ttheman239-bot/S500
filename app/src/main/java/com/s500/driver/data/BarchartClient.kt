@@ -24,6 +24,7 @@ class BarchartClient(
 ) {
 
     @Volatile private var primed = false
+    private val primeLock = Any()
 
     private fun primeUrl(symbol: String): String = when {
         symbol.startsWith("$") ->
@@ -32,6 +33,14 @@ class BarchartClient(
             "https://www.barchart.com/crypto/quotes/$symbol/overview"
         else ->
             "https://www.barchart.com/stocks/quotes/$symbol/price-history/historical"
+    }
+
+    private fun primeOnce(symbol: String) {
+        if (primed) return
+        synchronized(primeLock) {
+            if (primed) return
+            prime(symbol)
+        }
     }
 
     private fun prime(symbol: String) {
@@ -71,9 +80,19 @@ class BarchartClient(
         return URLDecoder.decode(raw, "UTF-8")
     }
 
-    /** Daily OHLC bars, oldest first.  Symbols: "AAPL", "BRK.B", "$SPX". */
+    /**
+     *  Daily OHLC bars, oldest first.
+     *
+     *  Symbols:  "AAPL", "BRK.B", "SPY".  We deliberately do NOT use
+     *  `$SPX` here even though Barchart accepts that symbol — the
+     *  index price-history page does not set the full cookie set
+     *  (laravel_session + market_*) that the timeseries proxy
+     *  validates.  Calls would return non-CSV ("Unauthorized") bodies.
+     *  Use SPY ETF as a 1:1 S&P 500 proxy instead — it is a regular
+     *  stock and uses the same flow that already works for MSTR/AAPL.
+     */
     fun fetchEod(symbol: String, maxRecords: Int): List<DayBar> {
-        if (!primed) prime("\$SPX")          // index page sets all needed cookies
+        primeOnce("AAPL")                   // any liquid stock primes all cookies
         val token = xsrfToken()
         val url = HttpUrl.Builder()
             .scheme("https").host("www.barchart.com")

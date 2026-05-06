@@ -281,7 +281,7 @@ object DriverEngine {
     ): String {
         val sb = StringBuilder()
         val dir = if (spxPctToday >= 0) "ขึ้น" else "ลง"
-        sb.append("S&P 500 วันที่ %s %s %+.2f%% (%dD: %+.2f%%)".format(
+        sb.append("S&P 500 (SPY) วันที่ %s %s %+.2f%% (%dD: %+.2f%%)".format(
             asOf, dir, spxPctToday, windowSessions, spxPctWindow))
         if (top != null && top.sharePct > 0) {
             sb.append("  •  ตัวผลักดันหลัก: ${top.symbol} ${"%+.1f".format(top.sharePct)}%")
